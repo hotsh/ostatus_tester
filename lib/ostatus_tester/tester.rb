@@ -136,18 +136,22 @@ module OStatusTester
 
     def test_ostatus
       puts "Testing #{webfinger_domain} for OStatus Compliance..."
+
+      test_function test_xrd_discovery_via_http_header
+      test_function test_profile_discovery_via_http_header
+      test_function test_profile_discovery_via_html
     end
 
     def test_xrd_discovery_via_http_header
-    end
-
-    def test_profile_url_available_in_xrd
+      print " -- Testing if xrd can be discovered via a Link in the HTTP header... "
     end
 
     def test_profile_discovery_via_http_header
+      print " -- Testing if profile url can be discovered via a Link in the HTTP header... "
     end
 
     def test_profile_discovery_via_html
+      print " -- Testing if profile url can be discovered via a Link in the HTML... "
     end
 
     def test
