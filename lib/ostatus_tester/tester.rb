@@ -22,6 +22,9 @@ module OStatusTester
 
     def initialize(domain, account)
       @domain  = domain.dup
+      if @domain.match /\/$/
+        @domain = @domain[0..-1]
+      end
       @account = account.dup
     end
 
@@ -142,16 +145,25 @@ module OStatusTester
       test_function test_profile_discovery_via_html
     end
 
+    def profile_page_url
+      acct = Redfinger.finger(@account)
+      acct.profile_page[0].href
+    end
+
     def test_xrd_discovery_via_http_header
       print " -- Testing if xrd can be discovered via a Link in the HTTP header... "
+      response = RestClient.get profile_page_url
+
+      if response.headers[:link].match /rel=\"lrdd\"/
+        response.headers[:link][/^<(.*?)>/,1]
+      else
+        false
+      end
     end
 
-    def test_profile_discovery_via_http_header
-      print " -- Testing if profile url can be discovered via a Link in the HTTP header... "
-    end
-
-    def test_profile_discovery_via_html
+    def test_feed_discovery_via_html
       print " -- Testing if profile url can be discovered via a Link in the HTML... "
+      response = RestClient.get profile_page_url
     end
 
     def test
