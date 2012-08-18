@@ -1,5 +1,20 @@
 require 'redfinger'
 
+# Workaround for Redfinger hiding template fields
+module Redfinger
+  class Link
+    class << self
+      alias_method :old_from_xml, :from_xml
+    end
+
+    def self.from_xml(xml_link)
+      new_link = Link.old_from_xml(xml_link)
+      new_link[:template] = xml_link['template']
+      new_link
+    end
+  end
+end
+
 module OStatusTester
   class Tester
     attr_accessor :domain
@@ -18,10 +33,12 @@ module OStatusTester
     end
 
     def test_function(p)
-      if p
+      if not p
+        puts "Fail"
+      elsif p == true
         puts "Pass"
       else
-        puts "Fail"
+        puts "Pass (#{p})"
       end
     end
 
@@ -30,6 +47,9 @@ module OStatusTester
 
       test_function test_webfinger_hostmeta_availability
       test_function test_webfinger_xrd_retrieval
+      test_function test_webfinger_xrd_contains_profile_page
+      test_function test_webfinger_xrd_contains_feed_uri
+      test_function test_webfinger_xrd_contains_subscription_template
     end
 
     def test_webfinger_hostmeta_availability
@@ -48,6 +68,74 @@ module OStatusTester
     end
 
     def test_webfinger_xrd_retrieval
+      print " -- Testing xrd retrieval... "
+      begin
+        acct = Redfinger.finger(@account)
+        true
+      rescue
+        false
+      end
+    end
+
+    def test_webfinger_xrd_contains_profile_page
+      print " -- Testing if xrd contains profile page... "
+
+      begin
+        acct = Redfinger.finger(@account)
+
+        if acct.profile_page.empty?
+          false
+        else
+          acct.profile_page[0].href
+        end
+      rescue
+        false
+      end
+    end
+
+    def test_webfinger_xrd_contains_feed_uri
+      print " -- Testing if xrd contains feed uri... "
+
+      begin
+        acct = Redfinger.finger(@account)
+
+      rescue
+        false
+      end
+
+        link = acct.links.find do |l|
+          l['rel'] == "http://schemas.google.com/g/2010#updates-from"
+        end
+
+        if link.nil?
+          false
+        else
+          link.href
+        end
+    end
+
+    def test_webfinger_xrd_contains_subscription_template
+      print " -- Testing if xrd contains subscription template... "
+
+      begin
+        acct = Redfinger.finger(@account)
+
+        link = acct.links.find do |l|
+          l['rel'] == "http://ostatus.org/schema/1.0/subscribe"
+        end
+
+        if link.nil?
+          false
+        else
+          link.template
+        end
+      rescue
+        false
+      end
+    end
+
+    def test_ostatus
+      puts "Testing #{webfinger_domain} for OStatus Compliance..."
     end
 
     def test_xrd_discovery_via_http_header
@@ -64,6 +152,7 @@ module OStatusTester
 
     def test
       test_webfinger
+      test_ostatus
     end
   end
 end
