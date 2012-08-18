@@ -1,4 +1,5 @@
 require 'redfinger'
+require 'nokogiri'
 
 # Workaround for Redfinger hiding template fields
 module Redfinger
@@ -141,8 +142,7 @@ module OStatusTester
       puts "Testing #{webfinger_domain} for OStatus Compliance..."
 
       test_function test_xrd_discovery_via_http_header
-      test_function test_profile_discovery_via_http_header
-      test_function test_profile_discovery_via_html
+      test_function test_feed_discovery_via_html
     end
 
     def profile_page_url
@@ -162,8 +162,17 @@ module OStatusTester
     end
 
     def test_feed_discovery_via_html
-      print " -- Testing if profile url can be discovered via a Link in the HTML... "
-      response = RestClient.get profile_page_url
+      print " -- Testing if feed url can be discovered via a link tag in the HTML... "
+      response = RestClient.get profile_page_url, {:accept => :html}
+
+      xml = Nokogiri.HTML(response.to_str)
+      links = xml.xpath("//link[@rel='alternate'][@type='application/atom+xml']")
+
+      if links.empty?
+        false
+      else
+        links.first.attributes['href']
+      end
     end
 
     def test
