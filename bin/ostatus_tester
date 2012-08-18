@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+
+$: << File.dirname(__FILE__) + '/../lib'
+
+require 'ostatus_tester'
+require 'ostatus_tester/cli'
+
+OStatusTester::CLI.run
+
