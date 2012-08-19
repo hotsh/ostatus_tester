@@ -1,5 +1,8 @@
 require 'redfinger'
 require 'nokogiri'
+require 'ostatus'
+require 'rsa'
+require 'base64'
 
 # Workaround for Redfinger hiding template fields
 module Redfinger
@@ -33,7 +36,8 @@ module OStatusTester
       @account[/@(.*)$/, 1]
     end
 
-    def format_output(str)
+    def ostatus_domain
+      @domain[/^http[s]?:\/\/(.*)$/, 1]
     end
 
     def test_function(p)
@@ -139,7 +143,7 @@ module OStatusTester
     end
 
     def test_ostatus
-      puts "Testing #{webfinger_domain} for OStatus Compliance..."
+      puts "Testing #{ostatus_domain} for OStatus Compliance..."
 
       test_function test_xrd_discovery_via_http_header
       test_function test_feed_discovery_via_html
@@ -175,9 +179,139 @@ module OStatusTester
       end
     end
 
+    def test_salmon_endpoint_in_xrd
+      print " -- Testing if xrd contains salmon url... "
+
+      begin
+        acct = Redfinger.finger(@account)
+
+        link = acct.links.find do |l|
+          l['rel'] == "salmon"
+        end
+
+        if link.nil?
+          false
+        else
+          link.href
+        end
+      rescue
+        false
+      end
+    end
+
+    def test_salmon_replies_endpoint_in_xrd
+      print " -- Testing if xrd contains salmon replies url... "
+
+      begin
+        acct = Redfinger.finger(@account)
+
+        link = acct.links.find do |l|
+          l['rel'] == "http://salmon-protocol.org/ns/salmon-replies"
+        end
+
+        if link.nil?
+          false
+        else
+          link.href
+        end
+      rescue
+        false
+      end
+    end
+
+    def test_salmon_mention_endpoint_in_xrd
+      print " -- Testing if xrd contains salmon mention url... "
+
+      begin
+        acct = Redfinger.finger(@account)
+
+        link = acct.links.find do |l|
+          l['rel'] == "http://salmon-protocol.org/ns/salmon-mention"
+        end
+
+        if link.nil?
+          false
+        else
+          link.href
+        end
+      rescue
+        false
+      end
+    end
+
+    def craft_salmon
+      poco = OStatus::PortableContacts.new(:id => "1",
+                                           :preferred_username => "testuser")
+
+      author = OStatus::Author.new(:name  => "testuser",
+                                   :uri   => "http://www.example.com",
+                                   :portable_contacts => poco,
+                                   :links => [Atom::Link.new(:rel  => "avatar",
+                                                             :type => "image/png",
+                                                             :href => "http://www.example.com")])
+
+      entry = OStatus::Entry.new(:title => "Test Entry",
+                                 :content => "Test Entry",
+                                 :updated => DateTime.now,
+                                 :published => DateTime.now,
+                                 :activity => OStatus::Activity.new(:object_type => :note),
+                                 :author => author,
+                                 :id => "1",
+                                 :links => [])
+
+      OStatus::Salmon.new entry
+    end
+
+    def test_salmon_202_or_4xx_when_salmon_is_posted
+      print " -- Testing if the response is 202 or 4xx when salmon notification is posted... "
+
+      begin
+        acct = Redfinger.finger(@account)
+
+        link = acct.links.find do |l|
+          l['rel'] == "salmon"
+        end
+
+        if link.nil?
+          return false
+        else
+          salmon_url = link.href
+        end
+      rescue
+        return false
+      end
+
+      keypair = RSA::KeyPair.generate(2048)
+
+      salmon = craft_salmon
+
+      begin
+        response = RestClient.post(salmon_url,
+                                   salmon.to_xml(keypair),
+                                   :content_type => "application/magic-envelope+xml")
+      rescue
+        return true
+      end
+
+      response.code == 202 || (response.code >= 400 && response.code < 500)
+    end
+
+    def test_salmon
+      puts "Testing #{webfinger_domain} for Salmon Compliance for OStatus..."
+
+      test_function test_salmon_endpoint_in_xrd
+      test_function test_salmon_replies_endpoint_in_xrd
+      test_function test_salmon_mention_endpoint_in_xrd
+
+      puts "Testing #{ostatus_domain} for Salmon Compliance for OStatus..."
+
+      test_function test_salmon_202_or_4xx_when_salmon_is_posted
+    end
+
     def test
       test_webfinger
       test_ostatus
+      test_salmon
     end
   end
 end
